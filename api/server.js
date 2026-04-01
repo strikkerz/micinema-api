@@ -52,12 +52,20 @@ app.get('/:id', (req, res) => {
     const movie = catalog.movies.find(m => m.id === requestedId);
 
     if (movie) {
-        console.log(`➡️ Redireccionando [${requestedId}] a: ${movie.videoUrl}`);
+        // Encontrar la URL correcta (soporta el formato antiguo y el nuevo con "links")
+        const urlToPlay = movie.videoUrl || (movie.links && movie.links.default);
+        
+        if (!urlToPlay || typeof urlToPlay !== 'string' || urlToPlay.trim() === '') {
+            console.log(`⚠️ Película sin enlace configurado: [${requestedId}]`);
+            return res.status(404).send("La película existe en tu catálogo, pero no tiene un link de YouTube guardado.");
+        }
+
+        console.log(`➡️ Redireccionando [${requestedId}] a: ${urlToPlay}`);
         // Retornar un HTTP 302 Found (Redirección temporal)
-        return res.redirect(302, movie.videoUrl);
+        return res.redirect(302, urlToPlay);
     } else {
         console.log(`⚠️ ID no encontrado: [${requestedId}]`);
-        return res.status(404).send("Película no encontrada.");
+        return res.status(404).send("Película no encontrada (verifica que el ID sea correcto).");
     }
 });
 
