@@ -8,6 +8,10 @@ public class CinemaUrlRegistry : UdonSharpBehaviour
     [Header("Debug")]
     public bool enableDebugLogs = true;
 
+    [Header("Security")]
+    [Tooltip("Clave de seguridad que debe coincidir con la de tu servidor API.")]
+    public string secretKey = "M1C1N3M4_S3CR3T_K3Y";
+
     [Header("Keys")]
     public string[] ids;
 
@@ -158,7 +162,7 @@ public class CinemaUrlRegistry : UdonSharpBehaviour
         {
             if (!string.IsNullOrEmpty(ids[i]))
             {
-                mainUrls[i] = new VRCUrl("http://localhost:3000/" + ids[i]);
+                mainUrls[i] = new VRCUrl("http://localhost:3000/" + ids[i] + "?key=" + secretKey);
             }
             else
             {

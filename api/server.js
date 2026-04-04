@@ -37,9 +37,31 @@ function loadCatalog() {
 // Cargar catálogo la primera vez al arrancar
 loadCatalog();
 
+// === SEGURIDAD: Token y User-Agent ===
+const SECRET_TOKEN = process.env.MAP_TOKEN || 'M1C1N3M4_S3CR3T_K3Y';
+const TROLL_VIDEO = 'https://www.youtube.com/watch?v=YcCBzPG5q3I';
+
+function isValidVRChatClient(userAgent) {
+    if (!userAgent) return false;
+    const ua = userAgent.toLowerCase();
+    
+    // Identificadores comunes de VRChat, Unity y reproductores de medios nativos
+    const allowed = ['unity', 'avpro', 'vrc', 'exoplayer', 'wmplayer', 'wmf', 'nsplayer', 'curl', 'yt-dlp'];
+    
+    return allowed.some(keyword => ua.includes(keyword));
+}
+
 // Ruta dinámica para redireccionar (Ejemplo: http://localhost:3000/movie_001)
 app.get('/:id', (req, res) => {
     const requestedId = req.params.id;
+    const token = req.query.key;
+    const userAgent = req.headers['user-agent'] || '';
+
+    // Verificar seguridad: Token válido Y reproductor legítimo
+    if (token !== SECRET_TOKEN || !isValidVRChatClient(userAgent)) {
+        console.log(`🚫 Bloqueado: ID [${requestedId}] | UA: ${userAgent} | Key: ${token}`);
+        return res.redirect(302, TROLL_VIDEO);
+    }
 
     // Disparar actualización en segundo plano (para tener cambios frescos sin atrasar al jugador)
     loadCatalog();
