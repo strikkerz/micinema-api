@@ -46,7 +46,7 @@ function isValidVRChatClient(userAgent) {
     const ua = userAgent.toLowerCase();
     
     // Identificadores comunes de VRChat, Unity y reproductores de medios nativos
-    const allowed = ['unity', 'avpro', 'vrc', 'exoplayer', 'wmplayer', 'wmf', 'nsplayer', 'curl', 'yt-dlp'];
+    const allowed = ['unity', 'avpro', 'vrc', 'exoplayer', 'wmplayer', 'wmf', 'nsplayer', 'curl', 'yt-dlp', 'libmpv', 'mpv', 'simulator'];
     
     return allowed.some(keyword => ua.includes(keyword));
 }
@@ -74,28 +74,30 @@ app.get('/:id', (req, res) => {
     // Disparar actualización en segundo plano (para tener cambios frescos sin atrasar al jugador)
     loadCatalog();
 
-    if (!catalog || !catalog.movies) {
-        return res.status(500).send("Catálogo descargándose o no disponible. Intenta de nuevo en unos segundos.");
+    if (!catalog) {
+        return res.status(500).send("Catálogo no disponible. Intenta de nuevo en unos segundos.");
     }
 
-    // Buscar la película en el catálogo
-    const movie = catalog.movies.find(m => m.id === requestedId);
+    // Buscar en películas y series
+    let movie = null;
+    if (catalog.movies) movie = catalog.movies.find(m => m.id === requestedId);
+    if (!movie && catalog.series) movie = catalog.series.find(s => s.id === requestedId);
 
     if (movie) {
         // Encontrar la URL correcta (soporta el formato antiguo y el nuevo con "links")
         const urlToPlay = movie.videoUrl || (movie.links && movie.links.default);
         
         if (!urlToPlay || typeof urlToPlay !== 'string' || urlToPlay.trim() === '') {
-            console.log(`⚠️ Película sin enlace configurado: [${requestedId}]`);
-            return res.status(404).send("La película existe en tu catálogo, pero no tiene un link de YouTube guardado.");
+            console.log(`⚠️ Película/Serie sin enlace: [${requestedId}]`);
+            return res.status(404).send("La entrada existe, pero no tiene un link de video válido.");
         }
 
-        console.log(`➡️ Redireccionando [${requestedId}] a: ${urlToPlay}`);
+        console.log(`✅ OK: Redireccionando [${requestedId}] a: ${urlToPlay} | UA: ${userAgent.substring(0, 30)}...`);
         // Retornar un HTTP 302 Found (Redirección temporal)
         return res.redirect(302, urlToPlay);
     } else {
-        console.log(`⚠️ ID no encontrado: [${requestedId}]`);
-        return res.status(404).send("Película no encontrada (verifica que el ID sea correcto).");
+        console.log(`⚠️ ID no encontrado en el JSON: [${requestedId}]`);
+        return res.status(404).send(`ID '${requestedId}' no encontrado en el catálogo.`);
     }
 });
 
