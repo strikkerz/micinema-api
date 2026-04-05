@@ -11,6 +11,8 @@ public class CinemaUrlRegistry : UdonSharpBehaviour
     [Header("Security")]
     [Tooltip("Clave de seguridad que debe coincidir con la de tu servidor API.")]
     public string secretKey = "M1C1N3M4_S3CR3T_K3Y";
+    [Tooltip("Tu servidor de API en la nube (Ej. https://micinema-api.onrender.com)")]
+    public string serverBaseUrl = "https://micinema-api.onrender.com";
 
     [Header("Keys")]
     public string[] ids;
@@ -150,8 +152,20 @@ public class CinemaUrlRegistry : UdonSharpBehaviour
     }
 
 #if !COMPILER_UDONSHARP && UNITY_EDITOR
-    [ContextMenu("Auto-completar URLs (Localhost)")]
+    [ContextMenu("Auto-completar URLs (Localhost - Pruebas)")]
     public void AutoFillLocalhostUrls()
+    {
+        AutoFillUrlsWithBase("http://localhost:3000");
+    }
+
+    [ContextMenu("Auto-completar URLs (Render - Producción)")]
+    public void AutoFillRenderUrls()
+    {
+        string baseUrl = string.IsNullOrEmpty(serverBaseUrl) ? "https://micinema-api.onrender.com" : serverBaseUrl.TrimEnd('/');
+        AutoFillUrlsWithBase(baseUrl);
+    }
+
+    private void AutoFillUrlsWithBase(string baseUrl)
     {
         UnityEditor.Undo.RecordObject(this, "Auto Fill URLs");
         if (ids == null) return;
@@ -162,7 +176,7 @@ public class CinemaUrlRegistry : UdonSharpBehaviour
         {
             if (!string.IsNullOrEmpty(ids[i]))
             {
-                mainUrls[i] = new VRCUrl("http://localhost:3000/" + ids[i] + "?key=" + secretKey);
+                mainUrls[i] = new VRCUrl(baseUrl + "/" + ids[i] + "?key=" + secretKey);
             }
             else
             {

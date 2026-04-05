@@ -57,9 +57,17 @@ app.get('/:id', (req, res) => {
     const token = req.query.key;
     const userAgent = req.headers['user-agent'] || '';
 
-    // Verificar seguridad: Token válido Y reproductor legítimo
-    if (token !== SECRET_TOKEN || !isValidVRChatClient(userAgent)) {
-        console.log(`🚫 Bloqueado: ID [${requestedId}] | UA: ${userAgent} | Key: ${token}`);
+    // === Verificar seguridad por partes para mejores logs ===
+    
+    // 1. Verificar Token
+    if (token !== SECRET_TOKEN) {
+        console.log(`🚫 Bloqueado por KEY incorrecta: ID [${requestedId}] | Key recibida: ${token}`);
+        return res.redirect(302, TROLL_VIDEO);
+    }
+
+    // 2. Verificar Reproductor (User-Agent)
+    if (!isValidVRChatClient(userAgent)) {
+        console.log(`🚫 Bloqueado por NAVEGADOR (UA no válido): ID [${requestedId}] | UA: ${userAgent}`);
         return res.redirect(302, TROLL_VIDEO);
     }
 
