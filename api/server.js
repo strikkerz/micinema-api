@@ -57,25 +57,19 @@ app.get('/:id', (req, res) => {
     const token = req.query.key;
     const userAgent = req.headers['user-agent'] || '';
 
-    // === SEGURIDAD DE DOBLE CAPA ===
-
-    // 1. Verificar Token
-    if (!token || token !== SECRET_TOKEN) {
-        console.log(`🚫 Acceso denegado (Token inválido): ID [${requestedId}]`);
-        return res.redirect(302, TROLL_VIDEO);
-    }
-
-    // 2. Verificar si es un Navegador (Bloqueo de ladrones de links)
+    // === SEGURIDAD INVISIBLE (Bloqueo de Navegadores) ===
     const isAdmin = req.query.admin === '1'; // Bypass secreto para ti
     const ua = userAgent.toLowerCase();
-    const isBrowser = ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari') || ua.includes('applewebkit');
+    
+    // Lista negra: Si el nombre del programa que pide el video es un navegador común, lo bloqueamos.
+    const isBrowser = ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari') || ua.includes('applewebkit') || ua.includes('edge');
 
     if (isBrowser && !isAdmin) {
-        console.log(`🚫 Bloqueado por NAVEGADOR (Intento de robo de link): ID [${requestedId}]`);
+        console.log(`🚫 Bloqueado por NAVEGADOR: ID [${requestedId}] | UA: ${userAgent.substring(0, 40)}...`);
         return res.redirect(302, TROLL_VIDEO);
     }
 
-    console.log(`✅ Acceso concedido: ID [${requestedId}] | Cliente: ${userAgent.substring(0, 20)}...`);
+    console.log(`✅ Acceso concedido (Limpio): ID [${requestedId}]`);
 
 
     // Disparar actualización en segundo plano (para tener cambios frescos sin atrasar al jugador)

@@ -176,8 +176,8 @@ public class CinemaUrlRegistry : UdonSharpBehaviour
         {
             if (!string.IsNullOrEmpty(ids[i]))
             {
-                // Inyectamos la llave secreta para que el servidor nos deje pasar
-                mainUrls[i] = new VRCUrl(baseUrl + "/" + ids[i] + "?key=" + secretKey);
+                // Ahora las URLs vuelven a ser limpias y cortas
+                mainUrls[i] = new VRCUrl(baseUrl + "/" + ids[i]);
             }
             else
             {
