@@ -57,15 +57,14 @@ app.get('/:id', (req, res) => {
     const token = req.query.key;
     const userAgent = req.headers['user-agent'] || '';
 
-    // === Verificar seguridad (Temporalmente desactivado para pruebas) ===
+    // === Verificar seguridad (ACTIVA) ===
     
     // 1. Verificar Reproductor (User-Agent)
-    /*
+    // Esto bloquea navegadores (Chrome, Firefox, etc.) para que no roben tus links.
     if (!isValidVRChatClient(userAgent)) {
-        console.log(`🚫 Bloqueado por NAVEGADOR (UA no válido): ID [${requestedId}] | UA: ${userAgent}`);
+        console.log(`🚫 Bloqueado por NAVEGADOR: ID [${requestedId}] | UA: ${userAgent.substring(0, 40)}...`);
         return res.redirect(302, TROLL_VIDEO);
     }
-    */
 
     // Log para saber quién entra (ayuda a depurar)
     console.log(`📡 Petición recibida: ID [${requestedId}] | UA: ${userAgent.substring(0, 50)}...`);
