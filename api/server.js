@@ -57,13 +57,25 @@ app.get('/:id', (req, res) => {
     const token = req.query.key;
     const userAgent = req.headers['user-agent'] || '';
 
-    // === SEGURIDAD OBLIGATORIA: Token Secreto ===
+    // === SEGURIDAD DE DOBLE CAPA ===
+
+    // 1. Verificar Token
     if (!token || token !== SECRET_TOKEN) {
-        console.log(`🚫 Acceso denegado: ID [${requestedId}] | Key recibida: ${token || 'ninguna'}`);
+        console.log(`🚫 Acceso denegado (Token inválido): ID [${requestedId}]`);
         return res.redirect(302, TROLL_VIDEO);
     }
 
-    console.log(`📡 Acceso concedido con llave: ID [${requestedId}]`);
+    // 2. Verificar si es un Navegador (Bloqueo de ladrones de links)
+    const isAdmin = req.query.admin === '1'; // Bypass secreto para ti
+    const ua = userAgent.toLowerCase();
+    const isBrowser = ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari') || ua.includes('applewebkit');
+
+    if (isBrowser && !isAdmin) {
+        console.log(`🚫 Bloqueado por NAVEGADOR (Intento de robo de link): ID [${requestedId}]`);
+        return res.redirect(302, TROLL_VIDEO);
+    }
+
+    console.log(`✅ Acceso concedido: ID [${requestedId}] | Cliente: ${userAgent.substring(0, 20)}...`);
 
 
     // Disparar actualización en segundo plano (para tener cambios frescos sin atrasar al jugador)
