@@ -2,8 +2,6 @@ using UdonSharp;
 using UnityEngine;
 using TMPro;
 using VRC.SDKBase;
-using VRC.SDK3.Image;
-using VRC.Udon.Common.Interfaces;
 
 [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
 public class CinemaPlaybackController : UdonSharpBehaviour
@@ -22,11 +20,6 @@ public class CinemaPlaybackController : UdonSharpBehaviour
     [UdonSynced] private string _syncedMovieId = "";
     [UdonSynced] private string _syncedTitle = "";
     [UdonSynced] private int _syncNonce;
-
-    [Header("Security")]
-    public VRCUrl knockUrl;
-
-    private VRCImageDownloader _downloader;
 
     private void Log(string message)
     {
@@ -91,15 +84,6 @@ public class CinemaPlaybackController : UdonSharpBehaviour
         Log("Solicitando ownership y serialización.");
         RequestSerialization();
 
-        // === SISTEMA DE SEGURIDAD: IP KNOCKING ===
-        if (!VRCUrl.IsNullOrEmpty(knockUrl))
-        {
-            Log("Tocando a la puerta: " + knockUrl.Get());
-            if (_downloader == null) _downloader = new VRCImageDownloader();
-            // Pasamos 'this' como receptor para que Udon esté feliz
-            _downloader.DownloadImage(knockUrl, null, (IUdonEventReceiver)this, null);
-        }
-
         proTV.SetProgramVariable("IN_MAINURL", mainUrl == null ? VRCUrl.Empty : mainUrl);
         proTV.SetProgramVariable("IN_ALTURL", altUrl == null ? VRCUrl.Empty : altUrl);
         proTV.SetProgramVariable("IN_TITLE", title == null ? "" : title);
@@ -109,10 +93,6 @@ public class CinemaPlaybackController : UdonSharpBehaviour
         SetStatus("Reproduciendo: " + title);
         Log("PlayMedia enviado a ProTV correctamente.");
     }
-
-    // Métodos obligatorios para que VRCImageDownloader no de error
-    public override void OnImageLoadSuccess(IVRCImageDownload result) { Log("Toque a la puerta exitoso."); }
-    public override void OnImageLoadError(IVRCImageDownload result) { Log("Toque a la puerta completado (con error, pero la IP ya se registró)."); }
 
     public string GetNowPlayingMovieId()
     {

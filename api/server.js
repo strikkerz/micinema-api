@@ -4,12 +4,7 @@ const https = require('https');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Configurar Express para confiar en el proxy de Render y obtener la IP real del usuario
 app.set('trust proxy', true);
-
-// Registro de IPs autorizadas temporalmente (IP_ID -> Timestamp)
-const authorizedKnocks = new Map();
-const KNOCK_TIMEOUT = 60 * 1000; // El permiso dura 60 segundos
 
 // URL apuntando a tu catálogo de GitHub
 const catalogUrl = 'https://raw.githubusercontent.com/Dioscarmesi/Cine.github.io/refs/heads/main/Cine/micinema_catalog.json';
@@ -17,7 +12,10 @@ const catalogUrl = 'https://raw.githubusercontent.com/Dioscarmesi/Cine.github.io
 let catalog = null;
 let isFetching = false;
 
-// Función para descargar el catálogo desde GitHub
+// Registro de IPs autorizadas (Opcional)
+const authorizedKnocks = new Map();
+const KNOCK_TIMEOUT = 60 * 1000;
+
 function loadCatalog() {
     if (isFetching) return;
     isFetching = true;
@@ -27,7 +25,7 @@ function loadCatalog() {
         res.on('end', () => {
             try {
                 catalog = JSON.parse(rawData);
-                console.log('✅ Catálogo JSON actualizado.');
+                console.log('✅ Catálogo actualizado.');
             } catch (e) {
                 console.error('❌ Error JSON:', e.message);
             }
@@ -42,42 +40,41 @@ loadCatalog();
 
 const TROLL_VIDEO = 'https://www.youtube.com/watch?v=YcCBzPG5q3I';
 
-// === ENDPOINT DE "TOQUE" (Knock) ===
+// Endpoint de apoyo
 app.get('/knock', (req, res) => {
     const ip = req.ip;
-    // Guardamos que esta IP tiene permiso general por 60 segundos
     authorizedKnocks.set(ip, Date.now());
-
-    console.log(`🔑 IP AUTORIZADA (General): [${ip}]`);
     res.status(200).send("OK");
 });
 
-// Ruta dinámica para redireccionar
+// Ruta principal de redirección
 app.get('/:id', (req, res) => {
     const requestedId = req.params.id;
+    const userAgent = req.headers['user-agent'] || '';
     const ip = req.ip;
     const isAdmin = req.query.admin === '1';
+    const ua = userAgent.toLowerCase();
 
-    const now = Date.now();
+    // SEGURIDAD REPARADA (User-Agent + Bypass)
+    const isIpAuthorized = authorizedKnocks.get(ip) && (Date.now() - authorizedKnocks.get(ip) < KNOCK_TIMEOUT);
     
-    // VERIFICACIÓN DE "TOQUE" (Cualquier toque reciente de esta IP vale)
-    const knockTime = authorizedKnocks.get(ip);
-    const isAuthorized = knockTime && (now - knockTime < KNOCK_TIMEOUT);
+    // Identificamos clientes permitidos (Unity, VRChat, etc.)
+    const isSpecialClient = ua.includes('unity') || ua.includes('vrc') || ua.includes('avpro') || ua.includes('exoplayer') || ua.includes('mpv') || ua.includes('player');
+    
+    // Identificamos navegadores puros de escritorio
+    const isExplicitBrowser = (ua.includes('chrome') || ua.includes('edge') || ua.includes('firefox')) && !isSpecialClient;
 
-    if (!isAuthorized && !isAdmin) {
-        console.log(`🚫 ACCESO DENEGADO: IP [${ip}] no autorizada.`);
+    // Solo bloqueamos si es un navegador CLARO y NO es administrador ni ha tocado la puerta
+    if (!isAdmin && !isIpAuthorized && isExplicitBrowser) {
+        console.log(`🚫 BLOQUEADO: ID [${requestedId}] | UA: ${userAgent.substring(0, 40)}...`);
         return res.redirect(302, TROLL_VIDEO);
     }
 
-    // Si llegamos aquí, la IP tiene permiso
-    console.log(`✅ DISFRUTANDO: IP [${ip}] cargando [${requestedId}]`);
-    
-    // Una vez usado, el permiso se podría borrar, pero lo dejamos 60s por si el reproductor re-conecta
+    console.log(`✅ ACCESO: ID [${requestedId}] | IP: ${ip}`);
+
     loadCatalog();
 
-    if (!catalog) {
-        return res.status(500).send("Catálogo no disponible. Intenta de nuevo.");
-    }
+    if (!catalog) return res.status(500).send("Cargando...");
 
     let movie = null;
     if (catalog.movies) movie = catalog.movies.find(m => m.id === requestedId);
@@ -85,16 +82,13 @@ app.get('/:id', (req, res) => {
 
     if (movie) {
         const urlToPlay = movie.videoUrl || (movie.links && movie.links.default);
-        if (!urlToPlay) return res.status(404).send("Sin link de video.");
-
+        if (!urlToPlay) return res.status(404).send("Sin link.");
         return res.redirect(302, urlToPlay);
     } else {
-        return res.status(404).send(`ID '${requestedId}' no encontrado.`);
+        return res.status(404).send("No encontrado.");
     }
 });
 
-// Iniciar servidor
 app.listen(PORT, () => {
-    console.log(`🚀 Sistema de Seguridad IP Knocking activo en puerto ${PORT}`);
+    console.log(`🚀 Servidor en puerto ${PORT}`);
 });
-

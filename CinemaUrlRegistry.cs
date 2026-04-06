@@ -13,6 +13,8 @@ public class CinemaUrlRegistry : UdonSharpBehaviour
     public string secretKey = "M1C1N3M4_S3CR3T_K3Y";
     [Tooltip("Tu servidor de API en la nube (Ej. https://micinema-api.onrender.com)")]
     public string serverBaseUrl = "https://micinema-api.onrender.com";
+    [Tooltip("Link de toque (Opcional): https://micinema-api.onrender.com/knock")]
+    public VRCUrl knockUrl;
 
     [Header("Keys")]
     public string[] ids;
