@@ -57,19 +57,23 @@ app.get('/:id', (req, res) => {
     const token = req.query.key;
     const userAgent = req.headers['user-agent'] || '';
 
-    // === SEGURIDAD INVISIBLE (Bloqueo de Navegadores) ===
-    const isAdmin = req.query.admin === '1'; // Bypass secreto para ti
+    // === SEGURIDAD INTELIGENTE (Prioridad a VRChat/Unity) ===
+    const isAdmin = req.query.admin === '1';
     const ua = userAgent.toLowerCase();
     
-    // Lista negra: Si el nombre del programa que pide el video es un navegador común, lo bloqueamos.
-    const isBrowser = ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari') || ua.includes('applewebkit') || ua.includes('edge');
+    // Identificar si es realmente VRChat o Unity (aunque digan Mozilla)
+    const isVRChatOrUnity = ua.includes('unity') || ua.includes('vrc') || ua.includes('avpro') || ua.includes('simulator') || ua.includes('mpv');
+    
+    // Identificar si parece un navegador común
+    const looksLikeBrowser = ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari') || ua.includes('applewebkit') || ua.includes('edge');
 
-    if (isBrowser && !isAdmin) {
-        console.log(`🚫 Bloqueado por NAVEGADOR: ID [${requestedId}] | UA: ${userAgent.substring(0, 40)}...`);
+    // REGLA: Si parece navegador pero NO ES Unity/VRChat, lo bloqueamos.
+    if (looksLikeBrowser && !isVRChatOrUnity && !isAdmin) {
+        console.log(`🚫 Bloqueado por NAVEGADOR (Real): ID [${requestedId}] | UA: ${userAgent.substring(0, 40)}...`);
         return res.redirect(302, TROLL_VIDEO);
     }
 
-    console.log(`✅ Acceso concedido (Limpio): ID [${requestedId}]`);
+    console.log(`✅ Acceso concedido (Cliente validado): ID [${requestedId}]`);
 
 
     // Disparar actualización en segundo plano (para tener cambios frescos sin atrasar al jugador)
