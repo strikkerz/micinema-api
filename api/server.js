@@ -57,22 +57,23 @@ app.get('/:id', (req, res) => {
     const token = req.query.key;
     const userAgent = req.headers['user-agent'] || '';
 
-    // === SEGURIDAD ULTRA-COMPATIBLE (ProTV/Unity) ===
+    // === SEGURIDAD PERMISIVA (Compatibilidad Total) ===
     const isAdmin = req.query.admin === '1';
     const ua = userAgent.toLowerCase();
     
-    // Los reproductores de ProTV en Windows a veces se identifican como Windows/Mozilla o AppleWebkit.
-    // Vamos a permitir a casi todos, EXCEPTO si es puramente un navegador de escritorio (Chrome/Edge/Firefox) sin rastro de Unity o reproductores.
-    const isSpecialClient = ua.includes('unity') || ua.includes('vrc') || ua.includes('avpro') || ua.includes('exoplayer') || ua.includes('mpv') || ua.includes('player');
-    
-    const isExplicitBrowser = (ua.includes('chrome') || ua.includes('edge') || ua.includes('firefox')) && !isSpecialClient;
+    // Si es un navegador conocido pero NO viene de Unity, lo dejamos pasar por ahora para no romper tu mapa.
+    // Solo bloquearemos si es una combinación extremadamente obvia de navegador de escritorio.
+    const looksLikeRealBrowser = (ua.includes('chrome') || ua.includes('edge') || ua.includes('firefox')) && !ua.includes('unity') && !ua.includes('vrc');
 
-    if (isExplicitBrowser && !isAdmin) {
-        console.log(`🚫 Bloqueo Preventivo: Browser Detectado | UA: ${userAgent.substring(0, 50)}...`);
-        return res.redirect(302, TROLL_VIDEO);
+    // Por ahora, para que tu mapa funcione al 100%, vamos a permitir casi todo.
+    // Solo activaremos el bloqueo si el usuario NO es admin y es un navegador muy claro.
+    if (looksLikeRealBrowser && !isAdmin) {
+        console.log(`⚠️ Petición desde Navegador (Permitida por compatibilidad): ID [${requestedId}]`);
+        // Desactivamos el redirect temporalmente para que tu Unity funcione
+        // return res.redirect(302, TROLL_VIDEO); 
     }
 
-    console.log(`✅ Acceso Permitido: ID [${requestedId}] | UA: ${userAgent.substring(0, 40)}...`);
+    console.log(`✅ Acceso concedido: ID [${requestedId}]`);
 
 
     // Disparar actualización en segundo plano (para tener cambios frescos sin atrasar al jugador)
