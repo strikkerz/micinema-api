@@ -57,13 +57,15 @@ app.get('/:id', (req, res) => {
     const token = req.query.key;
     const userAgent = req.headers['user-agent'] || '';
 
-    // === Verificar seguridad (ACTIVA) ===
+    // === Verificar seguridad (Depuración) ===
     
     // 1. Verificar Reproductor (User-Agent)
-    // Esto bloquea navegadores (Chrome, Firefox, etc.) para que no roben tus links.
     if (!isValidVRChatClient(userAgent)) {
-        console.log(`🚫 Bloqueado por NAVEGADOR: ID [${requestedId}] | UA: ${userAgent.substring(0, 40)}...`);
-        return res.redirect(302, TROLL_VIDEO);
+        // En lugar de bloquear, vamos a LOGUEAR para saber qué UA usa tu mapa
+        console.log(`⚠️ UA NO RECONOCIDO (Pero permitido por ahora): ${userAgent}`);
+        // return res.redirect(302, TROLL_VIDEO); // COMENTADO PARA QUE FUNCIONE EN EL MAPA
+    } else {
+        console.log(`✅ UA RECONOCIDO: ${userAgent.substring(0, 30)}...`);
     }
 
     // Log para saber quién entra (ayuda a depurar)
