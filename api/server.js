@@ -6,74 +6,82 @@ const PORT = process.env.PORT || 3000;
 
 app.set('trust proxy', true);
 
-// URL apuntando a tu catálogo de GitHub
+// URLs de GitHub
 const catalogUrl = 'https://raw.githubusercontent.com/Dioscarmesi/Cine.github.io/refs/heads/main/Cine/micinema_catalog.json';
+const keyUrl = 'https://raw.githubusercontent.com/strikkerz/micinema-api/main/Key.json';
 
 let catalog = null;
+let masterKey = null;
 let isFetching = false;
 
-// Registro de IPs autorizadas (Opcional)
+// Registro de IPs autorizadas
 const authorizedKnocks = new Map();
-const KNOCK_TIMEOUT = 60 * 1000;
+const KNOCK_TIMEOUT = 10 * 60 * 1000; // El permiso dura 10 minutos por sesión
 
-function loadCatalog() {
+function loadData() {
     if (isFetching) return;
     isFetching = true;
+
+    // Cargar Catálogo
     https.get(catalogUrl, (res) => {
-        let rawData = '';
-        res.on('data', (chunk) => { rawData += chunk; });
-        res.on('end', () => {
-            try {
-                catalog = JSON.parse(rawData);
-                console.log('✅ Catálogo actualizado.');
-            } catch (e) {
-                console.error('❌ Error JSON:', e.message);
-            }
-            isFetching = false;
-        });
-    }).on('error', (e) => {
-        console.error('❌ Error de red:', e.message);
-        isFetching = false;
+        let data = '';
+        res.on('data', c => data += c);
+        res.on('end', () => { try { catalog = JSON.parse(data); console.log('✅ Catálogo cargado.'); } catch(e){} });
     });
+
+    // Cargar Llave Maestra
+    https.get(keyUrl, (res) => {
+        let data = '';
+        res.on('data', c => data += c);
+        res.on('end', () => {
+            try { 
+                const json = JSON.parse(data);
+                masterKey = json.api_key;
+                console.log('🛡️ Llave Maestra cargada correctamente.');
+            } catch(e){ console.error('❌ Error cargando llave:', e.message); }
+        });
+    });
+
+    isFetching = false;
 }
-loadCatalog();
+loadData();
 
 const TROLL_VIDEO = 'https://www.youtube.com/watch?v=YcCBzPG5q3I';
 
-// Endpoint de apoyo
+// === ENDPOINT DE "TOQUE" (CREDENCIAL) ===
 app.get('/knock', (req, res) => {
     const ip = req.ip;
-    authorizedKnocks.set(ip, Date.now());
-    res.status(200).send("OK");
+    const clientKey = req.query.key;
+
+    if (!masterKey) return res.status(503).send("Servidor sincronizando llave...");
+
+    if (clientKey === masterKey) {
+        authorizedKnocks.set(ip, Date.now());
+        console.log(`🔑 CREDENCIAL OK: IP [${ip}] autorizada.`);
+        return res.status(200).send("ACCESO_CONCEDIDO");
+    } else {
+        console.log(`👮 INTENTO FALLIDO: IP [${ip}] con llave incorrecta.`);
+        return res.status(401).send("LLAVE_INVALIDA");
+    }
 });
 
 // Ruta principal de redirección
 app.get('/:id', (req, res) => {
     const requestedId = req.params.id;
-    const userAgent = req.headers['user-agent'] || '';
     const ip = req.ip;
     const isAdmin = req.query.admin === '1';
-    const ua = userAgent.toLowerCase();
 
-    // SEGURIDAD REPARADA (User-Agent + Bypass)
-    const isIpAuthorized = authorizedKnocks.get(ip) && (Date.now() - authorizedKnocks.get(ip) < KNOCK_TIMEOUT);
-    
-    // Identificamos clientes permitidos (Unity, VRChat, etc.)
-    const isSpecialClient = ua.includes('unity') || ua.includes('vrc') || ua.includes('avpro') || ua.includes('exoplayer') || ua.includes('mpv') || ua.includes('player');
-    
-    // Identificamos navegadores puros de escritorio
-    const isExplicitBrowser = (ua.includes('chrome') || ua.includes('edge') || ua.includes('firefox')) && !isSpecialClient;
+    // VERIFICACIÓN OBLIGATORIA DE CREDENCIAL
+    const knockTime = authorizedKnocks.get(ip);
+    const isAuthorized = knockTime && (Date.now() - knockTime < KNOCK_TIMEOUT);
 
-    // Solo bloqueamos si es un navegador CLARO y NO es administrador ni ha tocado la puerta
-    if (!isAdmin && !isIpAuthorized && isExplicitBrowser) {
-        console.log(`🚫 BLOQUEADO: ID [${requestedId}] | UA: ${userAgent.substring(0, 40)}...`);
+    if (!isAuthorized && !isAdmin) {
+        console.log(`🚫 BLOQUEADO: IP [${ip}] intentó ver [${requestedId}] sin credencial.`);
         return res.redirect(302, TROLL_VIDEO);
     }
 
-    console.log(`✅ ACCESO: ID [${requestedId}] | IP: ${ip}`);
-
-    loadCatalog();
-
+    console.log(`✅ DISFRUTANDO: ID [${requestedId}] | IP: ${ip}`);
+    
     if (!catalog) return res.status(500).send("Cargando...");
 
     let movie = null;
@@ -90,5 +98,5 @@ app.get('/:id', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor en puerto ${PORT}`);
+    console.log(`🚀 Servidor Seguro Protegido por Key.json activo.`);
 });
