@@ -57,28 +57,14 @@ app.get('/:id', (req, res) => {
     const token = req.query.key;
     const userAgent = req.headers['user-agent'] || '';
 
-    // === Verificar seguridad (Depuración) ===
-    
-    // 1. Verificar Reproductor (User-Agent)
-    if (!isValidVRChatClient(userAgent)) {
-        // En lugar de bloquear, vamos a LOGUEAR para saber qué UA usa tu mapa
-        console.log(`⚠️ UA NO RECONOCIDO (Pero permitido por ahora): ${userAgent}`);
-        // return res.redirect(302, TROLL_VIDEO); // COMENTADO PARA QUE FUNCIONE EN EL MAPA
-    } else {
-        console.log(`✅ UA RECONOCIDO: ${userAgent.substring(0, 30)}...`);
-    }
-
-    // Log para saber quién entra (ayuda a depurar)
-    console.log(`📡 Petición recibida: ID [${requestedId}] | UA: ${userAgent.substring(0, 50)}...`);
-
-
-    // 2. Verificar Token (Opcional: solo si quieres ultra-seguridad, por ahora desactivado para evitar lios)
-    /*
-    if (token && token !== SECRET_TOKEN) {
-        console.log(`🚫 Bloqueado por KEY incorrecta: ID [${requestedId}] | Key recibida: ${token}`);
+    // === SEGURIDAD OBLIGATORIA: Token Secreto ===
+    if (!token || token !== SECRET_TOKEN) {
+        console.log(`🚫 Acceso denegado: ID [${requestedId}] | Key recibida: ${token || 'ninguna'}`);
         return res.redirect(302, TROLL_VIDEO);
     }
-    */
+
+    console.log(`📡 Acceso concedido con llave: ID [${requestedId}]`);
+
 
     // Disparar actualización en segundo plano (para tener cambios frescos sin atrasar al jugador)
     loadCatalog();
