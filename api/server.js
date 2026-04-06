@@ -57,19 +57,21 @@ app.get('/:id', (req, res) => {
     const token = req.query.key;
     const userAgent = req.headers['user-agent'] || '';
 
-    // === Verificar seguridad por partes para mejores logs ===
+    // === Verificar seguridad (Simplificada) ===
     
-    // 1. Verificar Token
-    if (token !== SECRET_TOKEN) {
-        console.log(`🚫 Bloqueado por KEY incorrecta: ID [${requestedId}] | Key recibida: ${token}`);
-        return res.redirect(302, TROLL_VIDEO);
-    }
-
-    // 2. Verificar Reproductor (User-Agent)
+    // 1. Verificar Reproductor (User-Agent) - ESTA ES LA PROTECCIÓN PRINCIPAL
     if (!isValidVRChatClient(userAgent)) {
         console.log(`🚫 Bloqueado por NAVEGADOR (UA no válido): ID [${requestedId}] | UA: ${userAgent}`);
         return res.redirect(302, TROLL_VIDEO);
     }
+
+    // 2. Verificar Token (Opcional: solo si quieres ultra-seguridad, por ahora desactivado para evitar lios)
+    /*
+    if (token && token !== SECRET_TOKEN) {
+        console.log(`🚫 Bloqueado por KEY incorrecta: ID [${requestedId}] | Key recibida: ${token}`);
+        return res.redirect(302, TROLL_VIDEO);
+    }
+    */
 
     // Disparar actualización en segundo plano (para tener cambios frescos sin atrasar al jugador)
     loadCatalog();

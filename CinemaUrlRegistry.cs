@@ -176,7 +176,7 @@ public class CinemaUrlRegistry : UdonSharpBehaviour
         {
             if (!string.IsNullOrEmpty(ids[i]))
             {
-                mainUrls[i] = new VRCUrl(baseUrl + "/" + ids[i] + "?key=" + secretKey);
+                mainUrls[i] = new VRCUrl(baseUrl + "/" + ids[i]);
             }
             else
             {
