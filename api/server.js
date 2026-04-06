@@ -4,6 +4,13 @@ const https = require('https');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Configurar Express para confiar en el proxy de Render y obtener la IP real del usuario
+app.set('trust proxy', true);
+
+// Registro de IPs autorizadas temporalmente (IP_ID -> Timestamp)
+const authorizedKnocks = new Map();
+const KNOCK_TIMEOUT = 60 * 1000; // El permiso dura 60 segundos
+
 // URL apuntando a tu catálogo de GitHub
 const catalogUrl = 'https://raw.githubusercontent.com/Dioscarmesi/Cine.github.io/refs/heads/main/Cine/micinema_catalog.json';
 
@@ -12,105 +19,87 @@ let isFetching = false;
 
 // Función para descargar el catálogo desde GitHub
 function loadCatalog() {
-    // Si ya hay una petición en marcha, no hacemos otra para evitar colapsar la conexión
     if (isFetching) return;
     isFetching = true;
-    
     https.get(catalogUrl, (res) => {
         let rawData = '';
         res.on('data', (chunk) => { rawData += chunk; });
         res.on('end', () => {
             try {
                 catalog = JSON.parse(rawData);
-                console.log('✅ Catálogo JSON descargado y actualizado correctamente desde GitHub.');
+                console.log('✅ Catálogo JSON actualizado.');
             } catch (e) {
-                console.error('❌ Error al procesar el JSON:', e.message);
+                console.error('❌ Error JSON:', e.message);
             }
             isFetching = false;
         });
     }).on('error', (e) => {
-        console.error('❌ Error de red descargando el JSON:', e.message);
+        console.error('❌ Error de red:', e.message);
         isFetching = false;
     });
 }
-
-// Cargar catálogo la primera vez al arrancar
 loadCatalog();
 
-// === SEGURIDAD: Token y User-Agent ===
-const SECRET_TOKEN = process.env.MAP_TOKEN || 'M1C1N3M4_S3CR3T_K3Y';
 const TROLL_VIDEO = 'https://www.youtube.com/watch?v=YcCBzPG5q3I';
 
-function isValidVRChatClient(userAgent) {
-    if (!userAgent) return false;
-    const ua = userAgent.toLowerCase();
-    
-    // Identificadores comunes de VRChat, Unity y reproductores de medios nativos
-    const allowed = ['unity', 'avpro', 'vrc', 'exoplayer', 'wmplayer', 'wmf', 'nsplayer', 'curl', 'yt-dlp', 'libmpv', 'mpv', 'simulator'];
-    
-    return allowed.some(keyword => ua.includes(keyword));
-}
+// === ENDPOINT DE "TOQUE" (Knock) ===
+// Este endpoint lo llama Unity antes de poner el video
+app.get('/knock/:id', (req, res) => {
+    const id = req.params.id;
+    const ip = req.ip; // Gracias a 'trust proxy', esto es la IP del jugador
 
-// Ruta dinámica para redireccionar (Ejemplo: http://localhost:3000/movie_001)
+    const knockKey = `${ip}_${id}`;
+    authorizedKnocks.set(knockKey, Date.now());
+
+    console.log(`🔑 IP AUTORIZADA: [${ip}] para ID [${id}]`);
+    res.status(200).send("OK");
+});
+
+// Ruta dinámica para redireccionar (Ejemplo: https://tu-api.com/movie_001)
 app.get('/:id', (req, res) => {
     const requestedId = req.params.id;
-    const token = req.query.key;
-    const userAgent = req.headers['user-agent'] || '';
-
-    // === SEGURIDAD PERMISIVA (Compatibilidad Total) ===
+    const ip = req.ip;
     const isAdmin = req.query.admin === '1';
-    const ua = userAgent.toLowerCase();
-    
-    // Si es un navegador conocido pero NO viene de Unity, lo dejamos pasar por ahora para no romper tu mapa.
-    // Solo bloquearemos si es una combinación extremadamente obvia de navegador de escritorio.
-    const looksLikeRealBrowser = (ua.includes('chrome') || ua.includes('edge') || ua.includes('firefox')) && !ua.includes('unity') && !ua.includes('vrc');
 
-    // Por ahora, para que tu mapa funcione al 100%, vamos a permitir casi todo.
-    // Solo activaremos el bloqueo si el usuario NO es admin y es un navegador muy claro.
-    if (looksLikeRealBrowser && !isAdmin) {
-        console.log(`⚠️ Petición desde Navegador (Permitida por compatibilidad): ID [${requestedId}]`);
-        // Desactivamos el redirect temporalmente para que tu Unity funcione
-        // return res.redirect(302, TROLL_VIDEO); 
+    // Limpieza de knocks antiguos (opcional, para no llenar la memoria)
+    const now = Date.now();
+    
+    // VERIFICACIÓN DE "TOQUE A LA PUERTA"
+    const knockKey = `${ip}_${requestedId}`;
+    const knockTime = authorizedKnocks.get(knockKey);
+    const isAuthorized = knockTime && (now - knockTime < KNOCK_TIMEOUT);
+
+    if (!isAuthorized && !isAdmin) {
+        console.log(`🚫 ACCESO DENEGADO: La IP [${ip}] no ha tocado a la puerta para [${requestedId}]`);
+        return res.redirect(302, TROLL_VIDEO);
     }
 
-    console.log(`✅ Acceso concedido: ID [${requestedId}]`);
-
-
-    // Disparar actualización en segundo plano (para tener cambios frescos sin atrasar al jugador)
+    // Si llegamos aquí, la IP tiene permiso
+    console.log(`✅ DISFRUTANDO: IP [${ip}] cargando [${requestedId}]`);
+    
+    // Una vez usado, el permiso se podría borrar, pero lo dejamos 60s por si el reproductor re-conecta
     loadCatalog();
 
     if (!catalog) {
-        return res.status(500).send("Catálogo no disponible. Intenta de nuevo en unos segundos.");
+        return res.status(500).send("Catálogo no disponible. Intenta de nuevo.");
     }
 
-    // Buscar en películas y series
     let movie = null;
     if (catalog.movies) movie = catalog.movies.find(m => m.id === requestedId);
     if (!movie && catalog.series) movie = catalog.series.find(s => s.id === requestedId);
 
     if (movie) {
-        // Encontrar la URL correcta (soporta el formato antiguo y el nuevo con "links")
         const urlToPlay = movie.videoUrl || (movie.links && movie.links.default);
-        
-        if (!urlToPlay || typeof urlToPlay !== 'string' || urlToPlay.trim() === '') {
-            console.log(`⚠️ Película/Serie sin enlace: [${requestedId}]`);
-            return res.status(404).send("La entrada existe, pero no tiene un link de video válido.");
-        }
+        if (!urlToPlay) return res.status(404).send("Sin link de video.");
 
-        console.log(`✅ OK: Redireccionando [${requestedId}] a: ${urlToPlay} | UA: ${userAgent.substring(0, 30)}...`);
-        // Retornar un HTTP 302 Found (Redirección temporal)
         return res.redirect(302, urlToPlay);
     } else {
-        console.log(`⚠️ ID no encontrado en el JSON: [${requestedId}]`);
-        return res.status(404).send(`ID '${requestedId}' no encontrado en el catálogo.`);
+        return res.status(404).send(`ID '${requestedId}' no encontrado.`);
     }
 });
 
 // Iniciar servidor
 app.listen(PORT, () => {
-    console.log('====================================');
-    console.log(`🚀 API intermedio corriendo en:`);
-    console.log(`http://localhost:${PORT}`);
-    console.log(`Prueba: http://localhost:${PORT}/movie_001`);
-    console.log('====================================');
+    console.log(`🚀 Sistema de Seguridad IP Knocking activo en puerto ${PORT}`);
 });
+

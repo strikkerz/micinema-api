@@ -84,6 +84,26 @@ public class CinemaPlaybackController : UdonSharpBehaviour
         Log("Solicitando ownership y serialización.");
         RequestSerialization();
 
+        // === SISTEMA DE SEGURIDAD: IP KNOCKING ===
+        // Antes de que ProTV pida el video, nosotros avisamos al servidor
+        // Esto autoriza nuestra IP durante 60 segundos.
+        if (mainUrl != null)
+        {
+            string baseUrl = mainUrl.Get();
+            if (baseUrl.Contains(".onrender.com"))
+            {
+                // Obtenemos la URL base (sin el ID) para construir la ruta /knock/ID
+                int lastSlash = baseUrl.LastIndexOf('/');
+                if (lastSlash > 0)
+                {
+                    string knockUrl = baseUrl.Substring(0, lastSlash) + "/knock/" + movieId;
+                    Log("Tocando a la puerta: " + knockUrl);
+                    // Hacemos una petición invisible. No nos importa el resultado, solo que el servidor vea nuestra IP.
+                    VRC.SDKBase.VRCWebResources.DownloadImage(new VRCUrl(knockUrl), null, null);
+                }
+            }
+        }
+
         proTV.SetProgramVariable("IN_MAINURL", mainUrl == null ? VRCUrl.Empty : mainUrl);
         proTV.SetProgramVariable("IN_ALTURL", altUrl == null ? VRCUrl.Empty : altUrl);
         proTV.SetProgramVariable("IN_TITLE", title == null ? "" : title);
