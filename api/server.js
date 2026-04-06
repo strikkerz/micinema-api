@@ -57,23 +57,22 @@ app.get('/:id', (req, res) => {
     const token = req.query.key;
     const userAgent = req.headers['user-agent'] || '';
 
-    // === SEGURIDAD INTELIGENTE (Prioridad a VRChat/Unity) ===
+    // === SEGURIDAD ULTRA-COMPATIBLE (ProTV/Unity) ===
     const isAdmin = req.query.admin === '1';
     const ua = userAgent.toLowerCase();
     
-    // Identificar si es realmente VRChat o Unity (aunque digan Mozilla)
-    const isVRChatOrUnity = ua.includes('unity') || ua.includes('vrc') || ua.includes('avpro') || ua.includes('simulator') || ua.includes('mpv');
+    // Los reproductores de ProTV en Windows a veces se identifican como Windows/Mozilla o AppleWebkit.
+    // Vamos a permitir a casi todos, EXCEPTO si es puramente un navegador de escritorio (Chrome/Edge/Firefox) sin rastro de Unity o reproductores.
+    const isSpecialClient = ua.includes('unity') || ua.includes('vrc') || ua.includes('avpro') || ua.includes('exoplayer') || ua.includes('mpv') || ua.includes('player');
     
-    // Identificar si parece un navegador común
-    const looksLikeBrowser = ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari') || ua.includes('applewebkit') || ua.includes('edge');
+    const isExplicitBrowser = (ua.includes('chrome') || ua.includes('edge') || ua.includes('firefox')) && !isSpecialClient;
 
-    // REGLA: Si parece navegador pero NO ES Unity/VRChat, lo bloqueamos.
-    if (looksLikeBrowser && !isVRChatOrUnity && !isAdmin) {
-        console.log(`🚫 Bloqueado por NAVEGADOR (Real): ID [${requestedId}] | UA: ${userAgent.substring(0, 40)}...`);
+    if (isExplicitBrowser && !isAdmin) {
+        console.log(`🚫 Bloqueo Preventivo: Browser Detectado | UA: ${userAgent.substring(0, 50)}...`);
         return res.redirect(302, TROLL_VIDEO);
     }
 
-    console.log(`✅ Acceso concedido (Cliente validado): ID [${requestedId}]`);
+    console.log(`✅ Acceso Permitido: ID [${requestedId}] | UA: ${userAgent.substring(0, 40)}...`);
 
 
     // Disparar actualización en segundo plano (para tener cambios frescos sin atrasar al jugador)
