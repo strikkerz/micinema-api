@@ -1,6 +1,12 @@
 using UdonSharp;
 using UnityEngine;
 using VRC.SDKBase;
+using VRC.Udon;
+using VRC.SDK3.Data;
+
+#if !COMPILER_UDONSHARP && UNITY_EDITOR
+using UnityEditor;
+#endif
 
 [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
 public class CinemaUrlRegistry : UdonSharpBehaviour
@@ -9,9 +15,7 @@ public class CinemaUrlRegistry : UdonSharpBehaviour
     public bool enableDebugLogs = true;
 
     [Header("Security")]
-    [Tooltip("Clave de seguridad que debe coincidir con la de tu servidor API.")]
-    public string secretKey = "M1C1N3M4_S3CR3T_K3Y";
-    [Tooltip("Tu servidor de API en la nube (Ej. https://micinema-api.onrender.com)")]
+    [Tooltip("Tu servidor de API (Ej. https://micinema-api.onrender.com)")]
     public string serverBaseUrl = "https://micinema-api.onrender.com";
     [Tooltip("Link de toque (Opcional): https://micinema-api.onrender.com/knock")]
     public VRCUrl knockUrl;
@@ -31,10 +35,46 @@ public class CinemaUrlRegistry : UdonSharpBehaviour
     public VRCUrl[] heroPcUrls;
     public VRCUrl[] heroQuestUrls;
 
+    private DataDictionary _idToIndex;
+    private bool _initialized;
+
     private void Log(string message)
     {
         if (!enableDebugLogs) return;
         Debug.Log("[CinemaUrlRegistry] " + message);
+    }
+
+    public void Start()
+    {
+        ValidateArrays();
+    }
+
+    private void ValidateArrays()
+    {
+        if (ids == null) return;
+        int count = ids.Length;
+        
+        CheckArray("mainUrls", mainUrls, count);
+        CheckArray("altUrls", altUrls, count);
+        CheckArray("posterPcUrls", posterPcUrls, count);
+        CheckArray("posterQuestUrls", posterQuestUrls, count);
+        CheckArray("heroPcUrls", heroPcUrls, count);
+        CheckArray("heroQuestUrls", heroQuestUrls, count);
+    }
+
+    private void CheckArray(string name, VRCUrl[] array, int expected)
+    {
+        if (array == null) return;
+        if (array.Length != expected)
+        {
+            LogError("INCONSISTENCIA: El array '" + name + "' tiene " + array.Length + " elementos, pero 'ids' tiene " + expected + ". Esto causará errores de reproducción.");
+        }
+    }
+
+    private void LogError(string message)
+    {
+        if (!enableDebugLogs) return;
+        Debug.LogError("[CinemaUrlRegistry] " + message);
     }
 
     private void LogWarning(string message)
@@ -45,15 +85,51 @@ public class CinemaUrlRegistry : UdonSharpBehaviour
 
     public int FindIndexById(string id)
     {
-        if (ids == null || string.IsNullOrEmpty(id)) return -1;
+        if (string.IsNullOrEmpty(id)) return -1;
+        
+        if (!_initialized) InitializeCache();
 
-        int count = ids.Length;
-        for (int i = 0; i < count; i++)
+        if (_idToIndex != null && _idToIndex.ContainsKey(id))
         {
-            if (ids[i] == id) return i;
+            DataToken indexToken;
+            if (_idToIndex.TryGetValue(id, out indexToken))
+            {
+                return indexToken.Int;
+            }
         }
 
         return -1;
+    }
+
+    private void InitializeCache()
+    {
+        if (_initialized) return;
+        _initialized = true;
+
+        if (ids == null)
+        {
+            _idToIndex = new DataDictionary();
+            return;
+        }
+
+        int count = ids.Length;
+        _idToIndex = new DataDictionary();
+        for (int i = 0; i < count; i++)
+        {
+            string key = ids[i];
+            if (string.IsNullOrEmpty(key)) continue;
+            
+            if (!_idToIndex.ContainsKey(key))
+            {
+                _idToIndex.Add(key, i);
+            }
+            else
+            {
+                LogWarning("ID duplicado detectado en el Registro: '" + key + "' en el índice " + i);
+            }
+        }
+        
+        Log("Cache del Registro inicializado con " + _idToIndex.Count + " entradas.");
     }
 
     public bool HasEntry(string id)
@@ -154,39 +230,62 @@ public class CinemaUrlRegistry : UdonSharpBehaviour
     }
 
 #if !COMPILER_UDONSHARP && UNITY_EDITOR
-    [ContextMenu("Auto-completar URLs (Localhost - Pruebas)")]
-    public void AutoFillLocalhostUrls()
+    [ContextMenu("1. Generar 500 IDs Secuenciales")]
+    public void GenerateSequentialIds()
     {
-        AutoFillUrlsWithBase("http://localhost:3000");
+        Undo.RecordObject(this, "Generate IDs");
+        if (ids == null || ids.Length == 0) return;
+        for (int i = 0; i < ids.Length; i++) ids[i] = "movie_" + (i + 1).ToString("D3");
+        EditorUtility.SetDirty(this);
+        Debug.Log("[CinemaUrlRegistry] IDs generados.");
     }
 
-    [ContextMenu("Auto-completar URLs (Render - Producción)")]
+    [ContextMenu("2. Generar 500 Links (Render)")]
     public void AutoFillRenderUrls()
     {
+        Undo.RecordObject(this, "Auto Fill Rules");
+        if (ids == null || ids.Length == 0) return;
         string baseUrl = string.IsNullOrEmpty(serverBaseUrl) ? "https://micinema-api.onrender.com" : serverBaseUrl.TrimEnd('/');
-        AutoFillUrlsWithBase(baseUrl);
-    }
-
-    private void AutoFillUrlsWithBase(string baseUrl)
-    {
-        UnityEditor.Undo.RecordObject(this, "Auto Fill URLs");
-        if (ids == null) return;
         
         mainUrls = new VRCUrl[ids.Length];
-        
         for (int i = 0; i < ids.Length; i++)
         {
-            if (!string.IsNullOrEmpty(ids[i]))
-            {
-                // Ahora las URLs vuelven a ser limpias y cortas
-                mainUrls[i] = new VRCUrl(baseUrl + "/" + ids[i]);
-            }
-            else
-            {
-                mainUrls[i] = VRCUrl.Empty;
-            }
+            if (!string.IsNullOrEmpty(ids[i])) mainUrls[i] = new VRCUrl(baseUrl + "/" + ids[i]);
+            else mainUrls[i] = VRCUrl.Empty;
         }
-        UnityEditor.EditorUtility.SetDirty(this);
+        EditorUtility.SetDirty(this);
+        Debug.Log("[CinemaUrlRegistry] URLs de Render generadas correctamente.");
     }
 #endif
 }
+
+#if !COMPILER_UDONSHARP && UNITY_EDITOR
+[CustomEditor(typeof(CinemaUrlRegistry))]
+public class CinemaUrlRegistryEditor : Editor
+{
+    public override void OnInspectorGUI()
+    {
+        CinemaUrlRegistry script = (CinemaUrlRegistry)target;
+
+        EditorGUILayout.Space(10);
+        EditorGUILayout.LabelField("🔧 HERRAMIENTAS DE AUTO-CONFIGURACIÓN", EditorStyles.boldLabel);
+        
+        GUI.backgroundColor = new Color(0.7f, 1f, 0.7f); // Verde claro
+        if (GUILayout.Button("PASO 1: GENERAR IDs (movie_001, ...)", GUILayout.Height(35)))
+        {
+            script.GenerateSequentialIds();
+        }
+
+        GUI.backgroundColor = new Color(0.7f, 0.7f, 1f); // Azul claro
+        if (GUILayout.Button("PASO 2: GENERAR LINKS DE VIDEO (500 URLs)", GUILayout.Height(35)))
+        {
+            script.AutoFillRenderUrls();
+        }
+        
+        GUI.backgroundColor = Color.white;
+        EditorGUILayout.Space(10);
+        
+        DrawDefaultInspector();
+    }
+}
+#endif
