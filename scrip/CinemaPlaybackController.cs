@@ -2,6 +2,7 @@ using UdonSharp;
 using UnityEngine;
 using TMPro;
 using VRC.SDKBase;
+using VRC.SDK3.Image;
 
 [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
 public class CinemaPlaybackController : UdonSharpBehaviour
@@ -20,6 +21,8 @@ public class CinemaPlaybackController : UdonSharpBehaviour
     [UdonSynced] private string _syncedMovieId = "";
     [UdonSynced] private string _syncedTitle = "";
     [UdonSynced] private int _syncNonce;
+
+    private VRCImageDownloader _downloader;
 
     private void Log(string message)
     {
@@ -98,8 +101,8 @@ public class CinemaPlaybackController : UdonSharpBehaviour
                 {
                     string knockUrl = baseUrl.Substring(0, lastSlash) + "/knock/" + movieId;
                     Log("Tocando a la puerta: " + knockUrl);
-                    // Hacemos una petición invisible. No nos importa el resultado, solo que el servidor vea nuestra IP.
-                    VRC.SDKBase.VRCWebResources.DownloadImage(new VRCUrl(knockUrl), null, null);
+                    if (_downloader == null) _downloader = new VRCImageDownloader();
+                    _downloader.DownloadImage(new VRCUrl(knockUrl), null, null, null);
                 }
             }
         }
