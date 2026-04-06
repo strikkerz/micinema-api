@@ -43,34 +43,29 @@ loadCatalog();
 const TROLL_VIDEO = 'https://www.youtube.com/watch?v=YcCBzPG5q3I';
 
 // === ENDPOINT DE "TOQUE" (Knock) ===
-// Este endpoint lo llama Unity antes de poner el video
-app.get('/knock/:id', (req, res) => {
-    const id = req.params.id;
-    const ip = req.ip; // Gracias a 'trust proxy', esto es la IP del jugador
+app.get('/knock', (req, res) => {
+    const ip = req.ip;
+    // Guardamos que esta IP tiene permiso general por 60 segundos
+    authorizedKnocks.set(ip, Date.now());
 
-    const knockKey = `${ip}_${id}`;
-    authorizedKnocks.set(knockKey, Date.now());
-
-    console.log(`🔑 IP AUTORIZADA: [${ip}] para ID [${id}]`);
+    console.log(`🔑 IP AUTORIZADA (General): [${ip}]`);
     res.status(200).send("OK");
 });
 
-// Ruta dinámica para redireccionar (Ejemplo: https://tu-api.com/movie_001)
+// Ruta dinámica para redireccionar
 app.get('/:id', (req, res) => {
     const requestedId = req.params.id;
     const ip = req.ip;
     const isAdmin = req.query.admin === '1';
 
-    // Limpieza de knocks antiguos (opcional, para no llenar la memoria)
     const now = Date.now();
     
-    // VERIFICACIÓN DE "TOQUE A LA PUERTA"
-    const knockKey = `${ip}_${requestedId}`;
-    const knockTime = authorizedKnocks.get(knockKey);
+    // VERIFICACIÓN DE "TOQUE" (Cualquier toque reciente de esta IP vale)
+    const knockTime = authorizedKnocks.get(ip);
     const isAuthorized = knockTime && (now - knockTime < KNOCK_TIMEOUT);
 
     if (!isAuthorized && !isAdmin) {
-        console.log(`🚫 ACCESO DENEGADO: La IP [${ip}] no ha tocado a la puerta para [${requestedId}]`);
+        console.log(`🚫 ACCESO DENEGADO: IP [${ip}] no autorizada.`);
         return res.redirect(302, TROLL_VIDEO);
     }
 

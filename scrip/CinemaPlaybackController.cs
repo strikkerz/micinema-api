@@ -3,6 +3,7 @@ using UnityEngine;
 using TMPro;
 using VRC.SDKBase;
 using VRC.SDK3.Image;
+using VRC.Udon.Common.Interfaces;
 
 [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
 public class CinemaPlaybackController : UdonSharpBehaviour
@@ -21,6 +22,9 @@ public class CinemaPlaybackController : UdonSharpBehaviour
     [UdonSynced] private string _syncedMovieId = "";
     [UdonSynced] private string _syncedTitle = "";
     [UdonSynced] private int _syncNonce;
+
+    [Header("Security")]
+    public VRCUrl knockUrl;
 
     private VRCImageDownloader _downloader;
 
@@ -88,23 +92,12 @@ public class CinemaPlaybackController : UdonSharpBehaviour
         RequestSerialization();
 
         // === SISTEMA DE SEGURIDAD: IP KNOCKING ===
-        // Antes de que ProTV pida el video, nosotros avisamos al servidor
-        // Esto autoriza nuestra IP durante 60 segundos.
-        if (mainUrl != null)
+        if (!VRCUrl.IsNullOrEmpty(knockUrl))
         {
-            string baseUrl = mainUrl.Get();
-            if (baseUrl.Contains(".onrender.com"))
-            {
-                // Obtenemos la URL base (sin el ID) para construir la ruta /knock/ID
-                int lastSlash = baseUrl.LastIndexOf('/');
-                if (lastSlash > 0)
-                {
-                    string knockUrl = baseUrl.Substring(0, lastSlash) + "/knock/" + movieId;
-                    Log("Tocando a la puerta: " + knockUrl);
-                    if (_downloader == null) _downloader = new VRCImageDownloader();
-                    _downloader.DownloadImage(new VRCUrl(knockUrl), null, null, null);
-                }
-            }
+            Log("Tocando a la puerta: " + knockUrl.Get());
+            if (_downloader == null) _downloader = new VRCImageDownloader();
+            // Pasamos 'this' como receptor para que Udon esté feliz
+            _downloader.DownloadImage(knockUrl, null, (IUdonEventReceiver)this, null);
         }
 
         proTV.SetProgramVariable("IN_MAINURL", mainUrl == null ? VRCUrl.Empty : mainUrl);
@@ -116,6 +109,10 @@ public class CinemaPlaybackController : UdonSharpBehaviour
         SetStatus("Reproduciendo: " + title);
         Log("PlayMedia enviado a ProTV correctamente.");
     }
+
+    // Métodos obligatorios para que VRCImageDownloader no de error
+    public override void OnImageLoadSuccess(IVRCImageDownload result) { Log("Toque a la puerta exitoso."); }
+    public override void OnImageLoadError(IVRCImageDownload result) { Log("Toque a la puerta completado (con error, pero la IP ya se registró)."); }
 
     public string GetNowPlayingMovieId()
     {
